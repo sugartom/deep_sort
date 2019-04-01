@@ -6,19 +6,81 @@ import numpy as np
 import cv2
 import tensorflow as tf
 
+# # Yitao-TLS-Begin
+# import os
+# import sys
+# from tensorflow.python.saved_model import builder as saved_model_builder
+# from tensorflow.python.saved_model import signature_constants
+# from tensorflow.python.saved_model import signature_def_utils
+# from tensorflow.python.saved_model import tag_constants
+# from tensorflow.python.saved_model import utils
+# from tensorflow.python.util import compat
 
-def _run_in_batches(f, data_dict, out, batch_size):
-    data_len = len(out)
-    num_batches = int(data_len / batch_size)
+# tf.app.flags.DEFINE_integer('model_version', 1, 'version number of the model.')
+# FLAGS = tf.app.flags.FLAGS
 
-    s, e = 0, 0
-    for i in range(num_batches):
-        s, e = i * batch_size, (i + 1) * batch_size
-        batch_data_dict = {k: v[s:e] for k, v in data_dict.items()}
-        out[s:e] = f(batch_data_dict)
-    if e < len(out):
-        batch_data_dict = {k: v[e:] for k, v in data_dict.items()}
-        out[e:] = f(batch_data_dict)
+import grpc
+from tensorflow_serving.apis import predict_pb2
+from tensorflow_serving.apis import prediction_service_pb2_grpc
+
+from tensorflow.python.framework import tensor_util
+# # Yitao-TLS-End
+
+
+# def _run_in_batches(f, data_dict, out, batch_size):
+#     data_len = len(out)
+#     num_batches = int(data_len / batch_size)
+
+#     s, e = 0, 0
+#     for i in range(num_batches):
+#         s, e = i * batch_size, (i + 1) * batch_size
+#         batch_data_dict = {k: v[s:e] for k, v in data_dict.items()}
+#         out[s:e] = f(batch_data_dict)
+#     if e < len(out):
+#         batch_data_dict = {k: v[e:] for k, v in data_dict.items()}
+#         out[e:] = f(batch_data_dict)
+
+# def _run_in_batches(sess, output_var, input_var, data_x, out, batch_size):
+#     data_len = len(out)
+#     num_batches = int(data_len / batch_size)
+
+#     s, e = 0, 0
+#     for i in range(num_batches):
+#         s, e = i * batch_size, (i + 1) * batch_size
+#         out[s:e] = sess.run(output_var, feed_dict = {input_var : data_x[s:e]})
+#     if e < len(out):
+#         out[e:] = sess.run(output_var, feed_dict = {input_var : data_x[e:]})
+
+#     if True:
+#         # Yitao-TLS-Begin
+#         export_path_base = "actdet_deepsort"
+#         export_path = os.path.join(
+#             compat.as_bytes(export_path_base),
+#             compat.as_bytes(str(FLAGS.model_version)))
+#         print('Exporting trained model to ', export_path)
+#         builder = saved_model_builder.SavedModelBuilder(export_path)
+
+#         tensor_info_x = tf.saved_model.utils.build_tensor_info(input_var)
+#         tensor_info_y = tf.saved_model.utils.build_tensor_info(output_var)
+
+#         prediction_signature = tf.saved_model.signature_def_utils.build_signature_def(
+#             inputs={'input': tensor_info_x},
+#             outputs={'output': tensor_info_y},
+#             method_name=tf.saved_model.signature_constants.PREDICT_METHOD_NAME)
+
+#         legacy_init_op = tf.group(tf.tables_initializer(), name='legacy_init_op')
+#         builder.add_meta_graph_and_variables(
+#             sess, [tf.saved_model.tag_constants.SERVING],
+#             signature_def_map={
+#                 'predict_images':
+#                     prediction_signature,
+#             },
+#             legacy_init_op=legacy_init_op)
+
+#         builder.save()
+
+#         print('Done exporting!')
+#         # Yitao-TLS-End
 
 
 def extract_image_patch(image, bbox, patch_shape):
@@ -72,26 +134,93 @@ class ImageEncoder(object):
 
     def __init__(self, checkpoint_filename, input_name="images",
                  output_name="features"):
-        self.session = tf.Session()
-        with tf.gfile.GFile(checkpoint_filename, "rb") as file_handle:
-            graph_def = tf.GraphDef()
-            graph_def.ParseFromString(file_handle.read())
-        tf.import_graph_def(graph_def, name="net")
-        self.input_var = tf.get_default_graph().get_tensor_by_name(
-            "net/%s:0" % input_name)
-        self.output_var = tf.get_default_graph().get_tensor_by_name(
-            "net/%s:0" % output_name)
+        # self.session = tf.Session()
+        # with tf.gfile.GFile(checkpoint_filename, "rb") as file_handle:
+        #     graph_def = tf.GraphDef()
+        #     graph_def.ParseFromString(file_handle.read())
+        # tf.import_graph_def(graph_def, name="net")
+        # self.input_var = tf.get_default_graph().get_tensor_by_name(
+        #     "net/%s:0" % input_name)
+        # self.output_var = tf.get_default_graph().get_tensor_by_name(
+        #     "net/%s:0" % output_name)
 
-        assert len(self.output_var.get_shape()) == 2
-        assert len(self.input_var.get_shape()) == 4
-        self.feature_dim = self.output_var.get_shape().as_list()[-1]
-        self.image_shape = self.input_var.get_shape().as_list()[1:]
+        # assert len(self.output_var.get_shape()) == 2
+        # assert len(self.input_var.get_shape()) == 4
+        # self.feature_dim = self.output_var.get_shape().as_list()[-1]
+        # self.image_shape = self.input_var.get_shape().as_list()[1:]
+
+        # print("self.feature_dim = %s" % str(self.feature_dim))
+        # print("self.image_shape = %s" % str(self.image_shape))
+        self.feature_dim = 128
+        self.image_shape = [128, 64, 3]
+
+        ichannel = grpc.insecure_channel("localhost:8500")
+        self.istub = prediction_service_pb2_grpc.PredictionServiceStub(ichannel)
+
+    def tomHelper(self, myInput):
+        self.internal_request = predict_pb2.PredictRequest()
+        self.internal_request.model_spec.name = 'actdet_deepsort'
+        self.internal_request.model_spec.signature_name = 'predict_images'
+        self.internal_request.inputs['input'].CopyFrom(
+            tf.contrib.util.make_tensor_proto(myInput, shape=myInput.shape))
+
+        self.internal_result = self.istub.Predict(self.internal_request, 10.0)
+
+        result_value = tensor_util.MakeNdarray(self.internal_result.outputs['output'])
+
+        return result_value
 
     def __call__(self, data_x, batch_size=32):
+        # print("[Yitao] ImageEncoder()'s sess.run() is called...")
         out = np.zeros((len(data_x), self.feature_dim), np.float32)
-        _run_in_batches(
-            lambda x: self.session.run(self.output_var, feed_dict=x),
-            {self.input_var: data_x}, out, batch_size)
+
+        data_len = len(out)
+        num_batches = int(data_len / batch_size)
+
+        s, e = 0, 0
+        for i in range(num_batches):
+            s, e = i * batch_size, (i + 1) * batch_size
+            # out[s:e] = self.session.run(self.output_var, feed_dict = {self.input_var : data_x[s:e]})
+            out[s:e] = self.tomHelper(data_x[s:e])
+        if e < len(out):
+            # out[e:] = self.session.run(self.output_var, feed_dict = {self.input_var : data_x[e:]})
+            out[e:] = self.tomHelper(data_x[e:])
+
+        # if True:
+        #     # Yitao-TLS-Begin
+        #     init_op = tf.initialize_all_variables()
+        #     self.session.run(init_op)
+
+        #     export_path_base = "actdet_deepsort"
+        #     export_path = os.path.join(
+        #         compat.as_bytes(export_path_base),
+        #         compat.as_bytes(str(FLAGS.model_version)))
+        #     print('Exporting trained model to ', export_path)
+        #     builder = saved_model_builder.SavedModelBuilder(export_path)
+
+        #     tensor_info_x = tf.saved_model.utils.build_tensor_info(self.input_var)
+        #     tensor_info_y = tf.saved_model.utils.build_tensor_info(self.output_var)
+
+        #     prediction_signature = tf.saved_model.signature_def_utils.build_signature_def(
+        #         inputs={'input': tensor_info_x},
+        #         outputs={'output': tensor_info_y},
+        #         method_name=tf.saved_model.signature_constants.PREDICT_METHOD_NAME)
+
+        #     legacy_init_op = tf.group(tf.tables_initializer(), name='legacy_init_op')
+        #     builder.add_meta_graph_and_variables(
+        #         self.session, [tf.saved_model.tag_constants.SERVING],
+        #         signature_def_map={
+        #             'predict_images':
+        #                 prediction_signature,
+        #         },
+        #         legacy_init_op=legacy_init_op)
+
+        #     builder.save()
+
+        #     print('Done exporting!')
+        #     # Yitao-TLS-End
+
+
         return out
 
 
