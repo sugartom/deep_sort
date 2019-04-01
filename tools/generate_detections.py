@@ -51,38 +51,6 @@ from tensorflow.python.framework import tensor_util
 #     if e < len(out):
 #         out[e:] = sess.run(output_var, feed_dict = {input_var : data_x[e:]})
 
-#     if True:
-#         # Yitao-TLS-Begin
-#         export_path_base = "actdet_deepsort"
-#         export_path = os.path.join(
-#             compat.as_bytes(export_path_base),
-#             compat.as_bytes(str(FLAGS.model_version)))
-#         print('Exporting trained model to ', export_path)
-#         builder = saved_model_builder.SavedModelBuilder(export_path)
-
-#         tensor_info_x = tf.saved_model.utils.build_tensor_info(input_var)
-#         tensor_info_y = tf.saved_model.utils.build_tensor_info(output_var)
-
-#         prediction_signature = tf.saved_model.signature_def_utils.build_signature_def(
-#             inputs={'input': tensor_info_x},
-#             outputs={'output': tensor_info_y},
-#             method_name=tf.saved_model.signature_constants.PREDICT_METHOD_NAME)
-
-#         legacy_init_op = tf.group(tf.tables_initializer(), name='legacy_init_op')
-#         builder.add_meta_graph_and_variables(
-#             sess, [tf.saved_model.tag_constants.SERVING],
-#             signature_def_map={
-#                 'predict_images':
-#                     prediction_signature,
-#             },
-#             legacy_init_op=legacy_init_op)
-
-#         builder.save()
-
-#         print('Done exporting!')
-#         # Yitao-TLS-End
-
-
 def extract_image_patch(image, bbox, patch_shape):
     """Extract image patch from bounding box.
 
