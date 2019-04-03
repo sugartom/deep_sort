@@ -136,6 +136,8 @@ class ImageEncoder(object):
 
         result_value = tensor_util.MakeNdarray(self.internal_result.outputs['output'])
 
+        # print(result_value)
+
         return result_value
 
     def __call__(self, data_x, batch_size=32):
