@@ -88,4 +88,4 @@ ENV/
 # Rope project settings
 .ropeproject
 
-tools/generate_detections.py
+# tools/generate_detections.py
