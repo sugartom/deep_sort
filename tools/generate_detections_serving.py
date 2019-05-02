@@ -128,7 +128,7 @@ class ImageEncoder(object):
 
     def tomHelper(self, myInput):
         self.internal_request = predict_pb2.PredictRequest()
-        self.internal_request.model_spec.name = 'actdet_deepsort'
+        self.internal_request.model_spec.name = 'actdet_reid'
         self.internal_request.model_spec.signature_name = 'predict_images'
         self.internal_request.inputs['input'].CopyFrom(
             tf.contrib.util.make_tensor_proto(myInput, shape=myInput.shape))
